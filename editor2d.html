@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Lunar Studio Pro - Sistema de Colisão</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #1a1a1a; font-family: sans-serif; overflow: hidden; color: white; }
+        
+        #toolbar { background: #333; padding: 10px; display: flex; gap: 10px; border-bottom: 3px solid #000; z-index: 1000; position: relative; }
+        .btn { padding: 10px 15px; cursor: pointer; font-weight: bold; border: 2px solid #000; background: #eee; color: #000; transition: 0.1s; }
+        .btn:active { transform: scale(0.95); }
+        .btn-active { background: #f1c40f !important; border-color: #fff; }
+        .btn-copy { background: #27ae60; color: white; }
+        .btn-code { background: #2980b9; color: white; }
+
+        #workspace { display: flex; height: calc(100vh - 65px); position: relative; }
+        
+        #palette { width: 120px; background: #222; border-right: 2px solid #000; padding: 10px; display: flex; flex-direction: column; gap: 10px; z-index: 10; }
+        .tile-btn { width: 50px; height: 50px; border: 2px solid #444; cursor: pointer; background-image: url('https://opengameart.org/sites/default/files/Tiles_1.png'); background-size: 500px; image-rendering: pixelated; }
+        .selected-tile { border: 3px solid #f1c40f; }
+        .spawn-btn { background: #e67e22 !important; color: white; display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; font-weight: bold; }
+
+        #level-editor { flex: 1; background: #5c94fc; overflow: auto; position: relative; }
+        #grid { display: grid; grid-template-columns: repeat(256, 32px); width: max-content; height: 480px; }
+        .cell { width: 32px; height: 32px; border: 1px solid rgba(255,255,255,0.05); background-size: 320px; image-rendering: pixelated; user-select: none; }
+        .no-collision { opacity: 0.5; } /* Feedback visual para blocos sem colisão */
+        
+        #code-modal { position: absolute; top: 10px; right: 10px; width: 400px; height: 90%; background: rgba(34, 34, 34, 0.95); border: 3px solid #000; z-index: 2000; display: none; flex-direction: column; padding: 15px; }
+        #code-area { flex: 1; background: #111; color: #0f0; font-family: 'Consolas', monospace; padding: 10px; overflow: auto; font-size: 11px; border: 1px solid #444; }
+        
+        #player { position: absolute; width: 24px; height: 24px; visibility: hidden; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div id="toolbar">
+    <button id="btn-col-on" class="btn btn-active" onclick="setCollision(true)">COM COLISÃO</button>
+    <button id="btn-col-off" class="btn" onclick="setCollision(false)">SEM COLISÃO</button>
+    <button class="btn" onclick="setEraser()">BORRACHA</button>
+    <button class="btn btn-code" onclick="toggleCodeModal()">📂 LIVE CODE</button>
+    <button class="btn btn-copy" onclick="copiarMapa()">📋 COPIAR</button>
+    <div style="margin-left:auto; font-size:12px; align-self:center; color:#0f0;">A/D: Mover | Mouse: Pintar</div>
+</div>
+
+<div id="workspace">
+    <div id="palette">
+        <div class="tile-btn spawn-btn" onclick="setSpawnMode()">SPAWN</div>
+        <div id="t1" class="tile-btn selected-tile" style="background-position:0 0" onclick="setTile('0px 0px', 't1')"></div>
+        <div id="t2" class="tile-btn" style="background-position:-32px 0" onclick="setTile('-32px 0px', 't2')"></div>
+        <div id="t3" class="tile-btn" style="background-position:-64px 0" onclick="setTile('-64px 0px', 't3')"></div>
+    </div>
+    
+    <div id="level-editor">
+        <div id="grid"></div>
+        <div id="player"></div>
+    </div>
+</div>
+
+<div id="code-modal">
+    <textarea id="code-area" spellcheck="false" oninput="aplicarCodigoFonte()"></textarea>
+    <button class="btn" onclick="toggleCodeModal()" style="margin-top:5px;">FECHAR</button>
+</div>
+
+<script>
+    const grid = document.getElementById('grid'), player = document.getElementById('player'), editor = document.getElementById('level-editor');
+    const codeArea = document.getElementById('code-area'), codeModal = document.getElementById('code-modal');
+
+    let isEraser = false, spawnMode = false, selectedPos = "0px 0px", isDrawing = false, hasCollision = true;
+    let mapData = new Array(256 * 15).fill(0), spawnPos = { x: 64, y: 64 };
+    const keys = { L: 0, R: 0 };
+
+    window.onkeydown = e => { if(e.code==='KeyA'||e.code==='ArrowLeft') keys.L=1; if(e.code==='KeyD'||e.code==='ArrowRight') keys.R=1; };
+    window.onkeyup = e => { if(e.code==='KeyA'||e.code==='ArrowLeft') keys.L=0; if(e.code==='KeyD'||e.code==='ArrowRight') keys.R=0; };
+
+    function draw(c, i) {
+        if(spawnMode) {
+            document.querySelectorAll('.cell').forEach(cell => {cell.innerText = ""; cell.style.background = "none";});
+            c.innerText = "S"; c.style.background = "#e67e22";
+            spawnPos.x = (i % 256) * 32; spawnPos.y = Math.floor(i / 256) * 32;
+            px = spawnPos.x; py = spawnPos.y;
+        } else if(isEraser) {
+            c.style.backgroundImage = "none";
+            c.classList.remove('no-collision');
+            mapData[i] = 0;
+        } else {
+            c.style.backgroundImage = "url('https://opengameart.org/sites/default/files/Tiles_1.png')";
+            c.style.backgroundPosition = selectedPos;
+            if(!hasCollision) {
+                c.classList.add('no-collision');
+                mapData[i] = 2; // 2 = Decorativo (sem colisão)
+            } else {
+                c.classList.remove('no-collision');
+                mapData[i] = 1; // 1 = Colisão sólida
+            }
+        }
+        if(codeModal.style.display === "flex") codeArea.value = gerarHTMLFinal();
+    }
+
+    for (let i = 0; i < 256 * 15; i++) {
+        const c = document.createElement('div');
+        c.className = 'cell';
+        c.onmousedown = e => { if(e.buttons===1){ isDrawing=true; draw(c,i); } };
+        c.onmouseenter = e => { if(isDrawing) draw(c,i); };
+        grid.appendChild(c);
+    }
+    window.onmouseup = () => isDrawing = false;
+
+    function setCollision(val) {
+        hasCollision = val;
+        isEraser = false; spawnMode = false;
+        document.getElementById('btn-col-on').classList.toggle('btn-active', val);
+        document.getElementById('btn-col-off').classList.toggle('btn-active', !val);
+    }
+
+    function setTile(pos, id) {
+        selectedPos = pos; isEraser = false; spawnMode = false;
+        document.querySelectorAll('.tile-btn').forEach(b => b.classList.remove('selected-tile'));
+        document.getElementById(id).classList.add('selected-tile');
+    }
+
+    function setEraser() { isEraser = true; spawnMode = false; document.querySelectorAll('.tile-btn').forEach(b => b.classList.remove('selected-tile')); }
+    function setSpawnMode() { spawnMode = true; isEraser = false; }
+    function toggleCodeModal() { codeModal.style.display = (codeModal.style.display === "flex") ? "none" : "flex"; codeArea.value = gerarHTMLFinal(); }
+
+    let px = 64, py = 64, vy = 0;
+    function getTile(x, y) {
+        let tx = Math.floor(x/32), ty = Math.floor(y/32);
+        if(tx < 0 || tx >= 256 || ty < 0 || ty >= 15) return 0;
+        return mapData[ty*256+tx];
+    }
+    // Agora o check de colisão só trava se o valor for 1
+    function check(nx, ny) { 
+        return getTile(nx+4, ny+4) === 1 || getTile(nx+20, ny+4) === 1 || getTile(nx+4, ny+20) === 1 || getTile(nx+20, ny+20) === 1; 
+    }
+
+    function loop() {
+        let vx = (keys.R - keys.L) * 12;
+        if(!check(px + vx, py)) px += vx;
+        vy += 0.8;
+        if(!check(px, py + vy)) { py += vy; } else { vy = 0; }
+        if(py > 500) { px = spawnPos.x; py = spawnPos.y; vy = 0; }
+        player.style.left = px + "px"; player.style.top = py + "px";
+        if(!isDrawing && (keys.L || keys.R)) editor.scrollLeft = px - (editor.clientWidth / 2);
+        requestAnimationFrame(loop);
+    }
+    loop();
+
+    function gerarHTMLFinal() {
+        const gridHTML = grid.innerHTML.replace(/S/g, "");
+        return `<!DOCTYPE html><html><head><style>body{margin:0;background:#5c94fc;overflow:hidden;}#m{display:grid;grid-template-columns:repeat(256,32px);width:max-content;}.cell{width:32px;height:32px;background-size:320px;image-rendering:pixelated;}.no-collision{opacity:0.5;}#p{position:absolute;width:24px;height:24px;visibility:hidden;}</style></head><body><div id="m">${gridHTML}</div><div id="p"></div><script>const data=[${mapData.join(',')}];let px=${spawnPos.x},py=${spawnPos.y},vy=0,keys={L:0,R:0};window.onkeydown=e=>{if(e.code=='KeyA'||e.code=='ArrowLeft')keys.L=1;if(e.code=='KeyD'||e.code=='ArrowRight')keys.R=1;};window.onkeyup=e=>{if(e.code=='KeyA'||e.code=='ArrowLeft')keys.L=0;if(e.code=='KeyD'||e.code=='ArrowRight')keys.R=0;};function col(x,y){let tx=Math.floor(x/32),ty=Math.floor(y/32);return(tx>=0&&tx<256&&ty>=0&&ty<15)?data[ty*256+tx]:0;}function loop(){let nvx=(keys.R-keys.L)*12;if(col(px+nvx+4,py+4)!=1&&col(px+nvx+20,py+20)!=1)px+=nvx;vy+=0.8;if(col(px+4,py+vy+20)!=1&&col(px+20,py+vy+20)!=1){py+=vy;}else{vy=0;}document.getElementById('p').style.left=px+'px';document.getElementById('p').style.top=py+'px';window.scrollTo(px-window.innerWidth/2,0);requestAnimationFrame(loop);}loop();<\/script></body></html>`;
+    }
+
+    function copiarMapa() { navigator.clipboard.writeText(gerarHTMLFinal()).then(() => alert("COPIADO!")); }
+</script>
+</body>
+</html>
