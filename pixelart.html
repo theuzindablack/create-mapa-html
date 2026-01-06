@@ -2,102 +2,77 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Lunar Pixel Animator - Scroll Fix</title>
+    <title>Lunar Pixel - Color Picker Update</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #121212; color: white; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; }
         
-        /* Sidebar Fixa */
         #sidebar { 
             width: 260px; min-width: 260px; background: #1a1a1a; 
             border-right: 2px solid #000; display: flex; flex-direction: column; 
             padding: 15px; overflow-y: auto; height: 100vh;
         }
 
-        /* Área Principal */
         #main-content { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
         #canvas-area { 
             flex: 1; display: flex; align-items: center; justify-content: center; 
             background-image: linear-gradient(45deg, #222 25%, transparent 25%), linear-gradient(-45deg, #222 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #222 75%), linear-gradient(-45deg, transparent 75%, #222 75%);
             background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-            overflow: auto;
         }
 
-        #grid { display: grid; grid-template-columns: repeat(16, 25px); border: 2px solid #555; background: transparent; }
+        #grid { display: grid; grid-template-columns: repeat(16, 25px); border: 2px solid #555; }
         .p { width: 25px; height: 25px; border: 0.1px solid rgba(255,255,255,0.05); }
 
-        /* TIMELINE COM ROLAGEM (A SOLUÇÃO) */
         #timeline-container { 
             height: 140px; background: #222; border-top: 3px solid #000; 
-            width: 100%; overflow-x: auto; /* Ativa a rolagem horizontal */
-            overflow-y: hidden; white-space: nowrap; padding: 15px;
-            display: flex; align-items: flex-start; gap: 12px;
+            width: 100%; overflow-x: auto; overflow-y: hidden; white-space: nowrap; 
+            padding: 15px; display: flex; align-items: flex-start; gap: 12px;
         }
-        
-        /* Estilização da Barra de Rolagem */
-        #timeline-container::-webkit-scrollbar { height: 10px; }
-        #timeline-container::-webkit-scrollbar-track { background: #111; }
-        #timeline-container::-webkit-scrollbar-thumb { background: #444; border-radius: 5px; }
-        #timeline-container::-webkit-scrollbar-thumb:hover { background: #f1c40f; }
 
         .frame-thumb { 
             display: inline-flex; min-width: 90px; height: 90px; 
             background: #333; border: 2px solid #555; cursor: pointer; 
-            position: relative; align-items: center; justify-content: center; 
-            font-size: 11px; flex-shrink: 0; /* Impede o frame de espremer */
+            position: relative; align-items: center; justify-content: center; flex-shrink: 0;
         }
-        .frame-active { border-color: #f1c40f; background: #444; box-shadow: 0 0 10px rgba(241, 196, 15, 0.3); }
-        
-        .delete-frame-btn { position: absolute; top: -8px; right: -8px; background: #e74c3c; border-radius: 50%; width: 22px; height: 22px; border: 2px solid #222; color: white; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .frame-active { border-color: #f1c40f; background: #444; }
 
-        .btn { padding: 10px; margin-bottom: 8px; cursor: pointer; border: none; font-weight: bold; border-radius: 4px; transition: 0.2s; font-size: 13px; }
+        .btn { padding: 10px; margin-bottom: 8px; cursor: pointer; border: none; font-weight: bold; border-radius: 4px; transition: 0.2s; }
         .btn-hub { background: #e74c3c; color: white; }
-        .btn-add { background: #27ae60; color: white; width: 100%; }
         .btn-tool { background: #34495e; color: white; }
         .active-tool { background: #3498db !important; outline: 2px solid white; }
-        
-        #code-preview { flex: 1; background: #000; color: #0f0; font-family: monospace; font-size: 10px; padding: 10px; margin-top: 10px; overflow: auto; border: 1px solid #333; }
+        .delete-frame-btn { position: absolute; top: -5px; right: -5px; background: #e74c3c; border-radius: 50%; width: 20px; height: 20px; border: none; color: white; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
     <button class="btn btn-hub" onclick="location.href='index.html'">⬅ HUB</button>
-    <input type="color" id="colorPicker" value="#ff0000" style="width: 100%; height: 45px; margin-bottom: 10px; border:none; background:none; cursor:pointer;">
+    
+    <label style="font-size: 11px; color: #888;">COR ATUAL:</label>
+    <input type="color" id="colorPicker" value="#ff0000" style="width: 100%; height: 50px; margin-bottom: 10px; cursor:pointer;">
     
     <button id="tool-paint" class="btn btn-tool active-tool" onclick="setTool('paint')">🖌️ PINCEL</button>
-    <button id="tool-erase" class="btn btn-tool" onclick="setTool('erase')">🧽 BORRACHA</button>
-    <button class="btn" style="background:#7f8c8d; color:white;" onclick="clearFrame()">🗑️ LIMPAR FRAME</button>
+    <button id="tool-pick" class="btn btn-tool" onclick="setTool('pick')" style="background: #9b59b6;">🧪 CONTA-GOTAS</button>
+    <button id="tool-erase" class="btn btn-tool" onclick="setTool('erase')" style="background: #f39c12;">🧽 BORRACHA</button>
     
     <hr style="border: 1px solid #333; margin: 10px 0;">
     
-    <button class="btn btn-add" onclick="addFrame()">➕ NOVO FRAME</button>
-    <button class="btn" id="btnPlay" style="background:#f1c40f; color:#000;" onclick="playAnim()">▶ PLAY</button>
+    <button class="btn" style="background:#27ae60; color:white;" onclick="addFrame()">➕ NOVO FRAME</button>
+    <button class="btn" id="btnPlay" style="background:#f1c40f;" onclick="playAnim()">▶ PLAY</button>
     <button class="btn" style="background:#2980b9; color:white;" onclick="copyHTML()">📋 COPIAR HTML</button>
-    
-    <div id="code-preview"></div>
 </div>
 
 <div id="main-content">
     <div id="canvas-area">
         <div id="grid"></div>
     </div>
-    
     <div id="timeline-container"></div>
 </div>
 
 <script>
-    const grid = document.getElementById('grid');
-    const colorPicker = document.getElementById('colorPicker');
-    const timeline = document.getElementById('timeline-container');
-    const codePreview = document.getElementById('code-preview');
-    
-    let frames = [new Array(256).fill('transparent')];
-    let currentFrame = 0;
-    let tool = 'paint';
-    let isPlaying = false;
-    let timer;
+    const grid = document.getElementById('grid'), colorPicker = document.getElementById('colorPicker'), timeline = document.getElementById('timeline-container');
+    let frames = [new Array(256).fill('transparent')], currentFrame = 0, tool = 'paint', isPlaying = false, timer;
 
     function initGrid() {
         grid.innerHTML = '';
@@ -106,47 +81,50 @@
             div.className = 'p';
             div.style.backgroundColor = frames[currentFrame][i];
             div.onmousedown = () => useTool(div, i);
-            div.onmouseenter = (e) => { if(e.buttons === 1) useTool(div, i); };
+            div.onmouseenter = (e) => { if(e.buttons === 1 && tool !== 'pick') useTool(div, i); };
             grid.appendChild(div);
         }
         renderTimeline();
-        updateSync();
     }
 
     function setTool(t) {
         tool = t;
-        document.getElementById('tool-paint').classList.toggle('active-tool', t === 'paint');
-        document.getElementById('tool-erase').classList.toggle('active-tool', t === 'erase');
+        document.querySelectorAll('.btn-tool').forEach(b => b.classList.remove('active-tool'));
+        document.getElementById('tool-' + t).classList.add('active-tool');
     }
 
     function useTool(el, i) {
-        const color = (tool === 'erase') ? 'transparent' : colorPicker.value;
-        el.style.backgroundColor = color;
-        frames[currentFrame][i] = color;
-        updateSync();
-    }
-
-    function addFrame() {
-        const newFrame = [...frames[currentFrame]];
-        frames.push(newFrame);
-        currentFrame = frames.length - 1;
-        initGrid();
-        // Rola automaticamente para o novo frame
-        setTimeout(() => timeline.scrollLeft = timeline.scrollWidth, 50);
-    }
-
-    function deleteFrame(index, event) {
-        event.stopPropagation();
-        if(frames.length > 1) {
-            frames.splice(index, 1);
-            currentFrame = Math.max(0, index - 1);
-            initGrid();
+        if (tool === 'pick') {
+            const colorPicked = frames[currentFrame][i];
+            if (colorPicked !== 'transparent') {
+                colorPicker.value = rgbToHex(el.style.backgroundColor);
+                setTool('paint'); // Volta para o pincel após pegar a cor
+            }
+        } else {
+            const color = (tool === 'erase') ? 'transparent' : colorPicker.value;
+            el.style.backgroundColor = color;
+            frames[currentFrame][i] = color;
         }
     }
 
-    function clearFrame() {
-        if(confirm("Limpar este frame?")) {
-            frames[currentFrame].fill('transparent');
+    // Função auxiliar para converter RGB do navegador para HEX do input
+    function rgbToHex(rgb) {
+        if (!rgb || rgb === "transparent") return "#ffffff";
+        const res = rgb.match(/\d+/g);
+        return "#" + ((1 << 24) + (parseInt(res[0]) << 16) + (parseInt(res[1]) << 8) + parseInt(res[2])).toString(16).slice(1);
+    }
+
+    function addFrame() {
+        frames.push([...frames[currentFrame]]);
+        currentFrame = frames.length - 1;
+        initGrid();
+    }
+
+    function deleteFrame(index, e) {
+        e.stopPropagation();
+        if(frames.length > 1) {
+            frames.splice(index, 1);
+            currentFrame = Math.max(0, index - 1);
             initGrid();
         }
     }
@@ -156,32 +134,26 @@
         frames.forEach((f, i) => {
             const thumb = document.createElement('div');
             thumb.className = `frame-thumb ${i === currentFrame ? 'frame-active' : ''}`;
-            thumb.innerHTML = `FRAME ${i+1} <button class="delete-frame-btn" onclick="deleteFrame(${i}, event)">×</button>`;
+            thumb.innerHTML = `F${i+1} <button class="delete-frame-btn" onclick="deleteFrame(${i}, event)">×</button>`;
             thumb.onclick = () => { currentFrame = i; initGrid(); };
             timeline.appendChild(thumb);
         });
     }
 
-    function updateSync() {
-        codePreview.innerText = `// FRAMES: ${frames.length}\n// CURSOR: ${currentFrame}\n` + JSON.stringify(frames);
-    }
-
     function playAnim() {
         if(isPlaying) { isPlaying = false; clearInterval(timer); document.getElementById('btnPlay').innerText = "▶ PLAY"; return; }
-        isPlaying = true;
-        document.getElementById('btnPlay').innerText = "⏹ PARAR";
+        isPlaying = true; document.getElementById('btnPlay').innerText = "⏹ PARAR";
         let step = 0;
         timer = setInterval(() => {
-            currentFrame = step;
-            initGrid();
+            currentFrame = step; initGrid();
             step = (step + 1) % frames.length;
         }, 150);
     }
 
     function copyHTML() {
-        const html = `<!DOCTYPE html><html><head><style>body{background:#111;margin:0;display:flex;justify-content:center;align-items:center;height:100vh;}#c{display:grid;grid-template-columns:repeat(16,20px);border:4px solid #333;}.px{width:20px;height:20px;}</style></head><body><div id="c"></div><script>const f=${JSON.stringify(frames)};const el=document.getElementById('c');let cur=0;setInterval(()=>{el.innerHTML=f[cur].map(p=>\`<div class="px" style="background:\${p}"></div>\`).join('');cur=(cur+1)%f.length;},150);<\/script></body></html>`;
+        const html = `<!DOCTYPE html><html><head><style>body{background:#111;margin:0;display:flex;justify-content:center;align-items:center;height:100vh;}#c{display:grid;grid-template-columns:repeat(16,20px);} .px{width:20px;height:20px;}</style></head><body><div id="c"></div><script>const f=${JSON.stringify(frames)};const el=document.getElementById('c');let cur=0;setInterval(()=>{el.innerHTML=f[cur].map(p=>\`<div class="px" style="background:\${p}"></div>\`).join('');cur=(cur+1)%f.length;},150);<\/script></body></html>`;
         navigator.clipboard.writeText(html);
-        alert("Código copiado!");
+        alert("Copiado!");
     }
 
     initGrid();
