@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Pixel Art Pro - Real Time Sync</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #121212; color: white; font-family: sans-serif; display: flex; height: 100vh; }
+        
+        #editor { flex: 1; display: flex; flex-direction: column; align-items: center; border-right: 2px solid #000; padding: 20px; }
+        #grid { display: grid; grid-template-columns: repeat(16, 25px); background: #333; border: 2px solid #fff; cursor: crosshair; }
+        .p { width: 25px; height: 25px; border: 0.1px solid #444; }
+
+        #code-panel { width: 450px; background: #1a1a1a; display: flex; flex-direction: column; }
+        #code-area { flex: 1; background: #000; color: #0f0; font-family: monospace; padding: 15px; font-size: 11px; resize: none; border: none; }
+        
+        .toolbar { margin-bottom: 20px; display: flex; gap: 10px; }
+        .btn { padding: 10px; cursor: pointer; border: none; font-weight: bold; background: #eee; }
+        .btn-copy { background: #27ae60; color: white; }
+    </style>
+</head>
+<body>
+
+<div id="editor">
+    <div class="toolbar">
+        <input type="color" id="colorPicker" value="#ff0000">
+        <button class="btn" onclick="limpar()">LIMPAR</button>
+        <button class="btn btn-copy" onclick="copiar()">📋 COPIAR ARQUIVO .HTML</button>
+    </div>
+    <div id="grid"></div>
+</div>
+
+<div id="code-panel">
+    <div style="padding:10px; background:#333;">CÓDIGO FONTE (HTML/CSS/JS) - SYNC ATIVO</div>
+    <textarea id="code-area" readonly></textarea>
+</div>
+
+<script>
+    const grid = document.getElementById('grid');
+    const codeArea = document.getElementById('code-area');
+    const colorPicker = document.getElementById('colorPicker');
+    let pixels = new Array(256).fill('#ffffff');
+
+    function createGrid() {
+        for(let i=0; i<256; i++) {
+            const div = document.createElement('div');
+            div.className = 'p';
+            div.onmousedown = () => paint(div, i);
+            div.onmouseenter = (e) => { if(e.buttons === 1) paint(div, i); };
+            grid.appendChild(div);
+        }
+        updateCode();
+    }
+
+    function paint(el, i) {
+        el.style.backgroundColor = colorPicker.value;
+        pixels[i] = colorPicker.value;
+        updateCode();
+    }
+
+    function gerarHTML() {
+        return `<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { background: #222; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .canvas { display: grid; grid-template-columns: repeat(16, 20px); border: 4px solid #fff; }
+        .px { width: 20px; height: 20px; }
+    </style>
+</head>
+<body>
+    <div class="canvas">
+        ${pixels.map(c => `<div class="px" style="background:${c}"></div>`).join('')}
+    </div>
+</body>
+</html>`;
+    }
+
+    function updateCode() { codeArea.value = gerarHTML(); }
+    function limpar() { 
+        document.querySelectorAll('.p').forEach(p => p.style.backgroundColor = '#fff'); 
+        pixels.fill('#ffffff'); updateCode(); 
+    }
+    function copiar() { navigator.clipboard.writeText(gerarHTML()); alert("HTML do Sprite copiado!"); }
+
+    createGrid();
+</script>
+</body>
+</html>
