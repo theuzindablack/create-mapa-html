@@ -2,88 +2,179 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Pixel Art Pro - Real Time Sync</title>
+    <title>Lunar Pixel Animator - Pro</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #121212; color: white; font-family: sans-serif; display: flex; height: 100vh; }
+        body { background: #121212; color: white; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; }
         
-        #editor { flex: 1; display: flex; flex-direction: column; align-items: center; border-right: 2px solid #000; padding: 20px; }
-        #grid { display: grid; grid-template-columns: repeat(16, 25px); background: #333; border: 2px solid #fff; cursor: crosshair; }
-        .p { width: 25px; height: 25px; border: 0.1px solid #444; }
+        #sidebar { width: 260px; background: #1a1a1a; border-right: 2px solid #000; display: flex; flex-direction: column; padding: 15px; overflow-y: auto; }
+        #canvas-area { flex: 1; display: flex; align-items: center; justify-content: center; 
+            background-image: linear-gradient(45deg, #222 25%, transparent 25%), linear-gradient(-45deg, #222 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #222 75%), linear-gradient(-45deg, transparent 75%, #222 75%);
+            background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
 
-        #code-panel { width: 450px; background: #1a1a1a; display: flex; flex-direction: column; }
-        #code-area { flex: 1; background: #000; color: #0f0; font-family: monospace; padding: 15px; font-size: 11px; resize: none; border: none; }
+        #grid { display: grid; grid-template-columns: repeat(16, 25px); border: 2px solid #555; }
+        .p { width: 25px; height: 25px; border: 0.1px solid rgba(255,255,255,0.05); }
+
+        #timeline { height: 130px; background: #222; border-top: 2px solid #000; display: flex; gap: 10px; padding: 15px; overflow-x: auto; }
+        .frame-thumb { min-width: 80px; height: 80px; background: #333; border: 2px solid #555; cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+        .frame-active { border-color: #f1c40f; background: #444; }
+        .delete-frame-btn { position: absolute; top: -5px; right: -5px; background: #e74c3c; border-radius: 50%; width: 20px; height: 20px; border: none; color: white; cursor: pointer; font-size: 12px; }
+
+        .btn { padding: 10px; margin-bottom: 8px; cursor: pointer; border: none; font-weight: bold; border-radius: 4px; transition: 0.2s; }
+        .btn:hover { opacity: 0.8; }
+        .btn-hub { background: #e74c3c; color: white; }
+        .btn-add { background: #27ae60; color: white; }
+        .btn-erase { background: #f39c12; color: white; } /* Cor de Borracha */
+        .btn-clear { background: #7f8c8d; color: white; } /* Limpar frame */
         
-        .toolbar { margin-bottom: 20px; display: flex; gap: 10px; }
-        .btn { padding: 10px; cursor: pointer; border: none; font-weight: bold; background: #eee; }
-        .btn-copy { background: #27ae60; color: white; }
+        #code-preview { flex: 1; background: #000; color: #0f0; font-family: monospace; font-size: 10px; padding: 10px; margin-top: 10px; overflow: auto; white-space: pre-wrap; }
+        .active-tool { outline: 3px solid #fff; transform: scale(1.02); }
     </style>
 </head>
 <body>
 
-<div id="editor">
-    <div class="toolbar">
-        <input type="color" id="colorPicker" value="#ff0000">
-        <button class="btn" onclick="limpar()">LIMPAR</button>
-        <button class="btn btn-copy" onclick="copiar()">📋 COPIAR ARQUIVO .HTML</button>
-    </div>
-    <div id="grid"></div>
+<div id="sidebar">
+    <button class="btn btn-hub" onclick="location.href='index.html'">⬅ HUB</button>
+    
+    <label style="font-size: 12px; margin-bottom: 5px;">PALETA:</label>
+    <input type="color" id="colorPicker" value="#ff0000" style="width: 100%; height: 40px; margin-bottom: 10px;">
+    
+    <button id="tool-paint" class="btn active-tool" style="background:#3498db; color:white;" onclick="setTool('paint')">🖌️ PINCEL</button>
+    <button id="tool-erase" class="btn btn-erase" onclick="setTool('erase')">🧽 BORRACHA</button>
+    <button class="btn btn-clear" onclick="clearCurrentFrame()">🗑️ LIMPAR FRAME</button>
+    
+    <hr style="border: 1px solid #333; margin: 10px 0;">
+    
+    <button class="btn btn-add" onclick="addFrame()">➕ NOVO FRAME</button>
+    <button class="btn" onclick="playAnim()" id="btnPlay" style="background:#f1c40f;">▶ PLAY</button>
+    <button class="btn" style="background:#2980b9; color:white;" onclick="copyHTML()">📋 COPIAR HTML</button>
+    
+    <div id="code-preview"></div>
 </div>
 
-<div id="code-panel">
-    <div style="padding:10px; background:#333;">CÓDIGO FONTE (HTML/CSS/JS) - SYNC ATIVO</div>
-    <textarea id="code-area" readonly></textarea>
+<div style="flex: 1; display: flex; flex-direction: column;">
+    <div id="canvas-area">
+        <div id="grid"></div>
+    </div>
+    
+    <div id="timeline"></div>
 </div>
 
 <script>
     const grid = document.getElementById('grid');
-    const codeArea = document.getElementById('code-area');
     const colorPicker = document.getElementById('colorPicker');
-    let pixels = new Array(256).fill('#ffffff');
+    const timeline = document.getElementById('timeline');
+    const codePreview = document.getElementById('code-preview');
+    
+    let frames = [new Array(256).fill('transparent')];
+    let currentFrame = 0;
+    let tool = 'paint'; // 'paint' ou 'erase'
+    let isPlaying = false;
+    let timer;
 
-    function createGrid() {
+    function initGrid() {
+        grid.innerHTML = '';
         for(let i=0; i<256; i++) {
             const div = document.createElement('div');
             div.className = 'p';
-            div.onmousedown = () => paint(div, i);
-            div.onmouseenter = (e) => { if(e.buttons === 1) paint(div, i); };
+            div.style.backgroundColor = frames[currentFrame][i];
+            div.onmousedown = () => useTool(div, i);
+            div.onmouseenter = (e) => { if(e.buttons === 1) useTool(div, i); };
             grid.appendChild(div);
         }
-        updateCode();
+        renderTimeline();
+        updateSync();
     }
 
-    function paint(el, i) {
-        el.style.backgroundColor = colorPicker.value;
-        pixels[i] = colorPicker.value;
-        updateCode();
+    function setTool(t) {
+        tool = t;
+        document.getElementById('tool-paint').classList.toggle('active-tool', t === 'paint');
+        document.getElementById('tool-erase').classList.toggle('active-tool', t === 'erase');
     }
 
-    function gerarHTML() {
-        return `<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { background: #222; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .canvas { display: grid; grid-template-columns: repeat(16, 20px); border: 4px solid #fff; }
-        .px { width: 20px; height: 20px; }
-    </style>
-</head>
-<body>
-    <div class="canvas">
-        ${pixels.map(c => `<div class="px" style="background:${c}"></div>`).join('')}
-    </div>
-</body>
-</html>`;
+    function useTool(el, i) {
+        const color = (tool === 'erase') ? 'transparent' : colorPicker.value;
+        el.style.backgroundColor = color;
+        frames[currentFrame][i] = color;
+        renderTimeline();
+        updateSync();
     }
 
-    function updateCode() { codeArea.value = gerarHTML(); }
-    function limpar() { 
-        document.querySelectorAll('.p').forEach(p => p.style.backgroundColor = '#fff'); 
-        pixels.fill('#ffffff'); updateCode(); 
+    function clearCurrentFrame() {
+        if(confirm("Deseja apagar todo o desenho deste frame?")) {
+            frames[currentFrame].fill('transparent');
+            initGrid();
+        }
     }
-    function copiar() { navigator.clipboard.writeText(gerarHTML()); alert("HTML do Sprite copiado!"); }
 
-    createGrid();
+    function addFrame() {
+        const newFrame = [...frames[currentFrame]]; // Copia o atual para facilitar
+        frames.push(newFrame);
+        currentFrame = frames.length - 1;
+        initGrid();
+    }
+
+    function deleteFrame(index, event) {
+        event.stopPropagation();
+        if(frames.length > 1) {
+            frames.splice(index, 1);
+            currentFrame = Math.max(0, index - 1);
+            initGrid();
+        }
+    }
+
+    function renderTimeline() {
+        timeline.innerHTML = '';
+        frames.forEach((f, i) => {
+            const thumb = document.createElement('div');
+            thumb.className = `frame-thumb ${i === currentFrame ? 'frame-active' : ''}`;
+            thumb.innerHTML = `F${i+1} <button class="delete-frame-btn" onclick="deleteFrame(${i}, event)">×</button>`;
+            thumb.onclick = () => { currentFrame = i; initGrid(); };
+            timeline.appendChild(thumb);
+        });
+    }
+
+    function updateSync() {
+        codePreview.innerText = `// FRAME ATUAL: ${currentFrame + 1}\n// TOTAL: ${frames.length}\n` + JSON.stringify(frames, null, 2);
+    }
+
+    function playAnim() {
+        if(isPlaying) {
+            isPlaying = false;
+            clearInterval(timer);
+            document.getElementById('btnPlay').innerText = "▶ PLAY";
+            return;
+        }
+        isPlaying = true;
+        document.getElementById('btnPlay').innerText = "⏹ PARAR";
+        let step = 0;
+        timer = setInterval(() => {
+            currentFrame = step;
+            initGrid();
+            step = (step + 1) % frames.length;
+        }, 150);
+    }
+
+    function copyHTML() {
+        const html = `<!DOCTYPE html><html><head><style>
+            body{background:#111; display:flex; justify-content:center; align-items:center; height:100vh; margin:0;}
+            #c{display:grid; grid-template-columns:repeat(16,20px); border:4px solid #333;}
+            .px{width:20px; height:20px;}
+        </style></head><body><div id="c"></div><script>
+            const f = ${JSON.stringify(frames)};
+            const el = document.getElementById('c');
+            let cur = 0;
+            setInterval(() => {
+                el.innerHTML = f[cur].map(p => \`<div class="px" style="background:\${p}"></div>\`).join('');
+                cur = (cur + 1) % f.length;
+            }, 150);
+        <\/script></body></html>`;
+        navigator.clipboard.writeText(html);
+        alert("HTML Animado copiado com sucesso!");
+    }
+
+    initGrid();
 </script>
 </body>
 </html>
